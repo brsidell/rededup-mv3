@@ -1,32 +1,32 @@
 {
-  "manifest_version": 2,
-
+  "manifest_version": 3,
   "name": "Reddit Deduplicator",
   "version": "1.5",
-
   "author": "Nicholas Gaya",
   "description": "Hide duplicate posts on pre-redesign Reddit.",
   "homepage_url": "https://nickgaya.github.io/rededup/",
 
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "{68f0c654-5a3d-423b-b846-2b3ab68d05dd}"
-    }
-  },
-
   "icons": {
-    "48": "icons/icon.svg",
-    "96": "icons/icon.svg"
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
 
   "permissions": [
-    "*://*.thumbs.redditmedia.com/*",
     "storage"
+  ],
+
+  "host_permissions": [
+    "*://*.reddit.com/*",
+    "*://*.thumbs.redditmedia.com/*"
   ],
 
   "options_ui": {
     "page": "options/index.html",
     "open_in_tab": false
+  },
+
+  "background": {
+    "service_worker": "background.js"
   },
 
   "content_scripts": [
@@ -42,5 +42,13 @@
         "rededup.js"
       ]
     }
-  ]
+  ],
+  
+  "action": {
+    "default_title": "Reddit Deduplicator",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    }
+  }
 }
