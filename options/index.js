@@ -35,7 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return [domain, domainSettings];
         });
         numDomains.textContent = domainSettingsLst.length;
-        browser.storage.local.set({domainSettings: domainSettingsLst});
+        chrome.storage.local.set({domainSettings: domainSettingsLst});
     }
 
     /** Check that a domain name is valid. */
@@ -161,10 +161,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     ddByUrlAndThumb.addEventListener('click', (event) => {
-        browser.storage.local.set({deduplicateThumbs: true});
+        chrome.storage.local.set({deduplicateThumbs: true});
     });
     ddByUrlOnly.addEventListener('click', (event) => {
-        browser.storage.local.set({deduplicateThumbs: false});
+        chrome.storage.local.set({deduplicateThumbs: false});
     });
 
     domainSettingsButton.addEventListener('click', (event) => {
@@ -173,32 +173,32 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     dctHash.addEventListener('click', (event) =>
-        browser.storage.local.set({hashFunction: 'dctHash'}));
+        chrome.storage.local.set({hashFunction: 'dctHash'}));
     diffHash.addEventListener('click', (event) =>
-        browser.storage.local.set({hashFunction: 'diffHash'}));
+        chrome.storage.local.set({hashFunction: 'diffHash'}));
     waveletHash.addEventListener('click', (event) =>
-        browser.storage.local.set({hashFunction: 'waveletHash'}));
+        chrome.storage.local.set({hashFunction: 'waveletHash'}));
 
     maxHammingDistance.addEventListener('change', (event) => {
         maxHammingDistanceText.value = maxHammingDistance.value;
-        browser.storage.local.set(
+        chrome.storage.local.set(
             {maxHammingDistance: maxHammingDistance.valueAsNumber});
     });
     maxHammingDistance.addEventListener('input', (event) => {
         maxHammingDistanceText.value = maxHammingDistance.value;
     });
     partitionByDomain.addEventListener('change', (event) => {
-        browser.storage.local.set(
+        chrome.storage.local.set(
             {partitionByDomain: partitionByDomain.checked});
     });
     showHashValues.addEventListener('change', (event) => {
-        browser.storage.local.set(
+        chrome.storage.local.set(
             {showHashValues: showHashValues.checked});
     });
 
     reset.addEventListener('click', (event) => {
         updateUi(defaultSettings);
-        browser.storage.local.clear();
+        chrome.storage.local.clear();
     });
 
     domainInputButton.addEventListener('click', (event) => {
