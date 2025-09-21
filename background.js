@@ -1,5 +1,14 @@
 "use strict";
 
+// MV3 Change: Import the hashing scripts directly into the service worker's
+// scope. This makes their functions available globally within this script.
+// We assume 'phash.js' contains the 'fetchImageAndGetHash' function.
+try {
+  importScripts('dct.js', 'dwt.js', 'phash.js');
+} catch (e) {
+  console.error("Failed to import hashing scripts:", e);
+}
+
 /**
  * Convert an ArrayBuffer to a base64-encoded string.
  *
@@ -7,26 +16,40 @@
  * @return {String} Base64-encoded string.
  */
 function bufToBase64(buffer) {
-    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+  // This function is standard JavaScript and requires no changes.
+  return btoa(String.fromCharCode(...new Uint8Array(buffer)));
 }
 
-// Although the documentation has a warning not to use an async function, it's
-// perfectly fine for our use case since we always want to send a response in
-// this script.
-browser.runtime.onMessage.addListener(async (message, sender) => {
-    try {
-        const url = new URL(message.url, sender.url);
-        // For security, make sure the requested domain is valid
-        if (!url.hostname.endsWith('.thumbs.redditmedia.com')) {
-            throw new Error("Invalid domain");
-        }
-        // Also make sure to use HTTPS
-        url.protocol = 'https:';
-        const hash = await fetchImageAndGetHash(
-            url.href, message.hashFunction);
-        return {hash: bufToBase64(hash)};
-    } catch (error) {
-        console.warn(message, error);
-        return {error: "Failed to get image hash"};
-    }
+// MV3 Change: Switched from 'browser.runtime' to 'chrome.runtime' for the
+// official Chrome namespace. The async listener pattern is fully supported.
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Make sure we are responding to a message from our content script
+  if (message.type === 'hashImage') {
+    handleImageHashing(message, sender)
+      .then(sendResponse)
+      .catch(error => {
+        console.warn("Error during hashing:", message, error);
+        sendResponse({ error: "Failed to get image hash" });
+      });
+  }
+  
+  // Return true to indicate that we will send a response asynchronously.
+  return true; 
 });
+
+async function handleImageHashing(message, sender) {
+  const url = new URL(message.url, sender.url);
+
+  // For security, make sure the requested domain is valid
+  if (!url.hostname.endsWith('.thumbs.redditmedia.com')) {
+    throw new Error("Invalid domain: " + url.hostname);
+  }
+
+  // Also make sure to use HTTPS
+  url.protocol = 'https:';
+
+  // This assumes the fetchImageAndGetHash function is available from the
+  // imported scripts.
+  const hash = await fetchImageAndGetHash(url.href, message.hashFunction);
+  return { hash: bufToBase64(hash) };
+}
