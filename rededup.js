@@ -1,6 +1,45 @@
 "use strict";
 
 /**
+ * Convert a base64-encoded string to an ArrayBuffer.
+ *
+ * @param {String} base64 Base64-encoded string.
+ * @return {ArrayBuffer} ArrayBuffer containing the decoded data.
+ */
+function base64ToBuf(base64) {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+/**
+ * Sends an image URL to the background service worker for hashing.
+ *
+ * @param {string} imgUrl The URL of the image to hash.
+ * @param {string} hashFunction The name of the hash function to use.
+ * @returns {Promise<ArrayBuffer>} A promise that resolves with the image hash.
+ */
+async function getHashFromBackground(imgUrl, hashFunction) {
+  const response = await chrome.runtime.sendMessage({
+    type: 'hashImage',
+    url: imgUrl,
+    hashFunction: hashFunction,
+  });
+
+  if (response.error) {
+    throw new Error(`Background script error: ${response.error}`);
+  }
+  
+  // The background script returns a base64 string; convert it back to an ArrayBuffer
+  // for the rest of the script to use.
+  return base64ToBuf(response.hash);
+}
+
+/**
  * Convert an ArrayBuffer to a human-readable hex string for logging or similar
  * purposes.
  *
@@ -19,7 +58,7 @@ function bufToHex(buffer) {
  *
  * @param {ArrayBuffer} buffer An array of binary data
  * @return {String} A string whose code units correspond to the data
- *     interpreted as a Uint16Array.
+ * interpreted as a Uint16Array.
  */
 function bufToString(buffer) {
     return String.fromCharCode(...new Uint16Array(buffer));
@@ -144,7 +183,7 @@ function getTagline(thing, pageType) {
  * @property {String} url - Link url
  * @property {String} domain - Link domain
  * @property {?ArrayBuffer} thumbnailHash - Image hash of the link thumbnail if
- *     available
+ * available
  */
 
 /**
@@ -156,57 +195,60 @@ function getTagline(thing, pageType) {
  * @return {Promise<LinkInfo>} Link information
  */
 async function getLinkInfo(thing, pageType, settings) {
-    if (!thing.offsetParent) {
-        // Element is not visible (perhaps due to ad blocker), skip it
-        return null;
-    }
+  if (!thing.offsetParent) {
+    // Element is not visible (perhaps due to ad blocker), skip it
+    return null;
+  }
 
-    const linkInfo = {
-        thing: thing,
-    }
+  const linkInfo = {
+    thing: thing,
+  }
 
-    switch (pageType) {
-        case PageType.LISTING_PAGE:
-            linkInfo.url = thing.dataset.url;
-            linkInfo.domain = thing.dataset.domain;
-            break;
-        case PageType.SEARCH_PAGE:
-            const anchor = thing.querySelector('a.search-link')
-                || thing.querySelector('a.search-title');
-            if (anchor) {
-                const linkUrl = new URL(anchor.href, window.location);
-                linkInfo.url = linkUrl.href;
-                linkInfo.domain = linkUrl.hostname;
-            }
-            break;
-        default:
-            throw new Error("Invalid page type");
-    }
+  switch (pageType) {
+    case PageType.LISTING_PAGE:
+      linkInfo.url = thing.dataset.url;
+      linkInfo.domain = thing.dataset.domain;
+      break;
+    case PageType.SEARCH_PAGE:
+      const anchor = thing.querySelector('a.search-link') ||
+        thing.querySelector('a.search-title');
+      if (anchor) {
+        const linkUrl = new URL(anchor.href, window.location);
+        linkInfo.url = linkUrl.href;
+        linkInfo.domain = linkUrl.hostname;
+      }
+      break;
+    default:
+      throw new Error("Invalid page type");
+  }
 
 
-    if (settings.shouldProcessThumbnail(linkInfo.domain)) {
-        const thumbnailImg = thing.querySelector(':scope > .thumbnail > img');
-        if (thumbnailImg) {
-            try {
-                // Make sure we have an absolute url
-                const imgUrl = new URL(thumbnailImg.src, window.location).href;
-                linkInfo.thumbnailHash = await fetchImageAndGetHash(
-                    imgUrl, settings.hashFunction);
-                if (settings.showHashValues) {
-                    const hashElt = document.createElement('code');
-                    hashElt.textContent = bufToHex(linkInfo.thumbnailHash);
-                    const spanElt = document.createElement('span');
-                    spanElt.classList.add('rededup-hash');
-                    spanElt.append(' [', hashElt, ']');
-                    getTagline(thing, pageType).append(spanElt);
-                }
-            } catch (error) {
-                console.warn("Failed to get thumbnail hash", thumbnailImg,
-                             error);
-            }
+  if (settings.shouldProcessThumbnail(linkInfo.domain)) {
+    const thumbnailImg = thing.querySelector(':scope > .thumbnail > img');
+    if (thumbnailImg) {
+      try {
+        // Make sure we have an absolute url
+        const imgUrl = new URL(thumbnailImg.src, window.location).href;
+        
+        // MV3 CHANGE: Instead of fetching the hash directly, we ask the background script.
+        linkInfo.thumbnailHash = await getHashFromBackground(
+          imgUrl, settings.hashFunction);
+        
+        if (settings.showHashValues) {
+          const hashElt = document.createElement('code');
+          hashElt.textContent = bufToHex(linkInfo.thumbnailHash);
+          const spanElt = document.createElement('span');
+          spanElt.classList.add('rededup-hash');
+          spanElt.append(' [', hashElt, ']');
+          getTagline(thing, pageType).append(spanElt);
         }
+      } catch (error) {
+        console.warn("Failed to get thumbnail hash", thumbnailImg,
+          error);
+      }
     }
-    return linkInfo;
+  }
+  return linkInfo;
 }
 
 /**
@@ -244,7 +286,7 @@ function moveThingAfter(thing, otherThing) {
  * @property {Number} index - Index of primary link
  * @property {Boolean} showDuplicates - Whether to show or hide duplicate links
  * @property {Element} taglineElt - Element within the primary link tagline
- *    containing the duplicate count and visibility toggle
+ * containing the duplicate count and visibility toggle
  * @property {Element} countElt - Element for displaying the duplicate count
  * @property {Element} linkElt - Element for toggling duplicate visibility
  */
@@ -398,7 +440,7 @@ function hdist(a1, a2) {
  * @property {Int32Array} key - An image hash as a pair of 32-bit integers
  * @property {DSNode} value - Disjoint-set node for the image hash
  * @property {BKNode[]} children - A sparse array of child nodes, indexed by
- *     distance.
+ * distance.
  */
 class BKNode {
     /**
@@ -442,7 +484,7 @@ class BKNode {
      * @param {Int32Array} key Map key
      * @param {Number} maxDist Maximum Hamming distance, inclusive.
      * @yields {DSNode} Values for all keys within the given Hamming distance
-     *     of the specified key.
+     * of the specified key.
      */
     *findAll(key, maxDist) {
         const dist = hdist(this.key, key);
